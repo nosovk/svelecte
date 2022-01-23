@@ -15,20 +15,27 @@ export function isOutOfViewport(elem) {
   return out;
 };
 
-export let xhr = null;
-
-export function fetchRemote(url) {
+/**
+ * Create remote fetch function.
+ * 
+ * @param {string} url 
+ * @param {object} xhrRef - used for storing XHR reference, so we can cancel previous run on fetch query
+ * @returns {Function}
+ */
+export function fetchRemote(url, xhrRef) {
   return function(query, cb) {
+    const _xhr = new XMLHttpRequest();
+    xhrRef.get = () => _xhr;
     return new Promise((resolve, reject) => {
-      xhr = new XMLHttpRequest();
-      xhr.open('GET', `${url.replace('[query]', encodeURIComponent(query))}`);
-      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-      xhr.send();
+      _xhr.open('GET', `${url.replace('[query]', encodeURIComponent(query))}`);
+      _xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      _xhr.send();
       
-      xhr.onreadystatechange = () => {
-        if (xhr.readyState === 4) {
-          if (xhr.status === 200) {
-            const resp = JSON.parse(xhr.response);
+      _xhr.onreadystatechange = () => {
+        if (_xhr.readyState === 4) {
+          xhrRef.get = null;
+          if (_xhr.status === 200) {
+            const resp = JSON.parse(_xhr.response);
             resolve(cb ? cb(resp) : resp.data || resp.items || resp.options || resp);
           } else {
             reject();

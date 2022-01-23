@@ -1,6 +1,6 @@
 <script context="module">
   import defaults from './settings.js';
-  import { debounce, xhr, fieldInit, iOS } from './lib/utils.js'; // shared across instances
+  import { debounce, fieldInit, iOS } from './lib/utils.js'; // shared across instances
 
   const formatterList = {
     default: function(item) { return item[this.label]; }
@@ -159,13 +159,16 @@
   let initFetchOnly = false;
 
   /** ************************************ remote source */
-  // $: initFetchOnly = fetchMode === 'init' || (typeof fetch === 'string' && fetch.indexOf('[query]') === -1);
+  let xhrRef = { get: null };
   $: createFetch(fetch);
   $: disabled && cancelXhr();
 
   function cancelXhr() {
     if (isFetchingData) {
-      xhr && ![0,4].includes(xhr.readyState) && xhr.abort();
+      if (xhrRef.get) {
+        const xhr = xhrRef.get();
+        xhr && ![0,4].includes(xhr.readyState) && xhr.abort();
+      }
       isFetchingData = false;
     }
   }
@@ -177,7 +180,8 @@
     }
     if (!fetch) return null;
 
-    const fetchSource = typeof fetch === 'string' ? fetchRemote(fetch) : fetch;
+    // FUTURE: probably rethink or provide interface, how custom implementation can use `xhrRef` property to bind XHR object
+    const fetchSource = typeof fetch === 'string' ? fetchRemote(fetch, xhrRef) : fetch;
     initFetchOnly = fetchMode === 'init' || (fetchMode === 'auto' && typeof fetch === 'string' && fetch.indexOf('[query]') === -1);
     const debouncedFetch = debounce(query => {
       if (query && !$inputValue.length) {
