@@ -25,10 +25,9 @@
   import { writable } from 'svelte/store';
   import { fetchRemote, defaultCreateFilter, defaultCreateTransform } from './lib/utils.js';
   import { initSelection, flatList, filterList, indexList, getFilterProps } from './lib/list.js';
-  import Selection from './components/Selection.svelte';
-  import Input from './components/Input.svelte';
-  import Dropdown from './components/Dropdown.svelte';
-  import Item from './components/Item.svelte';
+  import Control from './components/old_Control.svelte';
+  import Dropdown from './components/old_Dropdown.svelte';
+  import Item from './components/old_Item.svelte';
 
   // form and CE
   export let name = 'svelecte';
@@ -100,7 +99,7 @@
   export let valueAsObject = defaults.valueAsObject;
   export let parentValue = undefined;
   export const focus = event => {
-    focusControl(event);
+    refControl.focusControl(event);
   };
   export const getSelection = onlyValues => {
     if (!selectedOptions.length) return multiple ? [] : null;
@@ -142,6 +141,7 @@
   }
   let isInitialized = false;
   let refDropdown;
+  let refControl;
   let ignoreHover = false;
   let dropdownActiveIndex = null;
   let currentValueField = valueField || fieldInit('value', options, itemConfig);
@@ -491,8 +491,7 @@
     emitChangeEvent();
   }
 
-  function onDeselect(event = {}, opt = null) {
-    console.log(event, opt);
+  function onDeselect(event, opt) {
     if (disabled) return;
     opt = opt || event.detail;
     if (opt) {
@@ -500,7 +499,7 @@
     } else {  // apply for 'x' when clearable:true || ctrl+backspace || ctrl+delete
       clearSelection();
     }
-    tick().then(focusControl);
+    tick().then(refControl.focusControl);
     emitChangeEvent();
   }
 
@@ -662,74 +661,6 @@
   }
 
 
-  function onBtnClick(e) {
-    const actionBtn = e.target.closest('button[data-action]');
-    if (!actionBtn) return;
-
-    e.preventDefault();
-    switch (actionBtn.dataset.action) {
-      case 'clear':
-        onDeselect();
-        break;
-      case 'toggleDropdown':
-        e.stopPropagation();
-        // TODO: make it toggleable
-        focusControl();
-        break;
-    }
-  }
-
-  /** ************************************ input-related */
-
-  let inputMode = 'none';             // mobile related only
-  let refInput = undefined;
-  let doCollapse = true;
-
-  function focusControl(event) {
-    if (disabled) return;
-    if (!event) {
-      !$hasFocus && refInput.focus();
-      $hasDropdownOpened = true;
-      return;
-    } else if (event?.target.tagName !== 'INPUT') {
-      event.preventDefault();
-    }
-    if (!$hasFocus) {
-      refInput.focus();
-    } else {
-      if ((isAndroid || isIOS) && inputMode !== 'text') {
-        inputMode = 'text';
-        return;
-      }
-      if (event?.target.tagName === 'INPUT' && $inputValue) {
-        return;
-      } else if (inputMode === 'text') {
-        inputMode = 'none';
-        $hasDropdownOpened = true;
-        return
-      }
-      $hasDropdownOpened = !$hasDropdownOpened;
-    }
-  }
-  function onFocus() {
-    $hasFocus = true;
-    $hasDropdownOpened = true;
-    !alwaysCollapsed && setTimeout(() => {
-    doCollapse = false;
-    }, 150);
-  }
-
-  function onBlur() {
-    inputMode = 'none';
-    $hasFocus = false;
-    $hasDropdownOpened = false;
-    if (resetOnBlur) $inputValue = ''; // reset
-    !alwaysCollapsed && setTimeout(() => {
-      doCollapse = true;
-    }, 100);
-    dispatch('blur');
-  }
-
 
   /** ************************************ component lifecycle related */
 
@@ -751,94 +682,47 @@
 </script>
 
 <div class={`svelecte ${className}`} class:is-disabled={disabled} {style}>
-  <!-- svelte-ignore a11y-no-static-element-interactions -->
-  <div class="sv-control" on:mousedown={focusControl}>
-    <slot name="icon"></slot>
-    <div class="sv-input-wrap">
-      <Selection {currentValueField} {inputValue} {selectedOptions} {hasFocus} renderer={itemRenderer}
-        {multiple} itemComponent={Item}
-        collapseSelection={collapseSelection ? config.collapseSelectionFn.bind(_i18n): null}
-        on:deselect={onDeselect}
-      />
-      <Input bind:this={refInput} 
-        {inputId} {placeholder} {searchable} {disabled} {multiple} {inputValue} {hasDropdownOpened} {selectedOptions}
-        on:keydown={onKeyDown}
-        on:focus={onFocus}
-        on:blur={onBlur}
-        {isAndroid} inputMode="none"
-      />
-    </div>
-    
-    <!-- buttons, indicators -->
-    <div class="sv-buttons" class:is-loading={isFetchingData}>
-      {#if clearable && !disabled}
-      <button type="button" class="sv-btn is-indicator" class:sv-has-selection={selectedOptions.length}
-        data-action="clear"  tabindex="-1"
-        on:mousedown|preventDefault
-        on:click={onBtnClick}
-      >
-        <slot name="clear-icon">
-          <svg class="indicator-icon" height="20" width="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M14.348 14.849c-0.469 0.469-1.229 0.469-1.697 0l-2.651-3.030-2.651 3.029c-0.469 0.469-1.229 0.469-1.697 0-0.469-0.469-0.469-1.229 0-1.697l2.758-3.15-2.759-3.152c-0.469-0.469-0.469-1.228 0-1.697s1.228-0.469 1.697 0l2.652 3.031 2.651-3.031c0.469-0.469 1.228-0.469 1.697 0s0.469 1.229 0 1.697l-2.758 3.152 2.758 3.15c0.469 0.469 0.469 1.229 0 1.698z"></path></svg>
-        </slot>
-      </button>
+  <Control bind:this={refControl} renderer={itemRenderer}
+    {disabled} {clearable} {searchable} {placeholder} {multiple} inputId={inputId || __id + '_input'} {resetOnBlur} collapseSelection={collapseSelection ? config.collapseSelectionFn.bind(_i18n): null}
+    inputValue={inputValue} hasFocus={hasFocus} hasDropdownOpened={hasDropdownOpened} selectedOptions={selectedOptions} {isFetchingData}
+    {dndzone} {currentValueField} {isAndroid} {isIOS} {alwaysCollapsed}
+    itemComponent={controlItem}
+    on:deselect={onDeselect}
+    on:keydown={onKeyDown}
+    on:paste={onPaste}
+    on:consider={onDndEvent}
+    on:finalize={onDndEvent}
+    on:blur
+  >
+    <div slot="icon" class="icon-slot"><slot name="icon"></slot></div>
+    <div slot="control-end"><slot name="control-end"></slot></div>
+    <slot name="indicator-icon" slot="indicator-icon" let:hasDropdownOpened {hasDropdownOpened}>
+      <svg width="20" height="20" class="indicator-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+        <path d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"></path>
+      </svg>
+    </slot>
+    <slot name="clear-icon" slot="clear-icon" {selectedOptions} inputValue={$inputValue}>
+      {#if selectedOptions.length}
+      <svg class="indicator-icon" height="20" width="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M14.348 14.849c-0.469 0.469-1.229 0.469-1.697 0l-2.651-3.030-2.651 3.029c-0.469 0.469-1.229 0.469-1.697 0-0.469-0.469-0.469-1.229 0-1.697l2.758-3.15-2.759-3.152c-0.469-0.469-0.469-1.228 0-1.697s1.228-0.469 1.697 0l2.652 3.031 2.651-3.031c0.469-0.469 1.228-0.469 1.697 0s0.469 1.229 0 1.697l-2.758 3.152 2.758 3.15c0.469 0.469 0.469 1.229 0 1.698z"></path></svg>
       {/if}
-      {#if clearable}<span class="sv-btn-separator"></span>{/if}
-      <button type="button" class="sv-btn is-indicator" class:sv-dropdown-opened={$hasDropdownOpened}
-        data-action="toggleDropdown" tabindex="-1"
-        on:mousedown|preventDefault
-        on:click={onBtnClick}
-      >
-        <!-- TODO: rename this slot -->
-        <slot name="indicator-icon" hasDropdownOpened={$hasDropdownOpened}>
-          <svg width="20" height="20" class="indicator-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-            <path d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"></path>
-          </svg>
-        </slot>
-      </button>
-    </div>
-    <slot name="control-end"></slot>
-  </div>
-  <!-- svelte-ignore a11y-no-static-element-interactions -->
-  <div class="sv-dropdown" class:is-open={$hasDropdownOpened} on:mousedown|preventDefault>
-    {#if isInitialized && collapseSelection && alwaysCollapsed && selectedOptions.length}
-    <div class="sv-content has-multiSelection alwaysCollapsed-selection">
-      {#each selectedOptions as opt, i (i)}
-        <svelte:component this={controlItem} formatter={itemRenderer} item={opt} isSelected={true} on:deselect isMultiple={multiple} {inputValue}/>
-      {/each}
-    </div>
-    {/if}
-    <Dropdown bind:this={refDropdown} renderer={itemRenderer} {disableHighlight} {creatable} {maxReached} {alreadyCreated}
-      {virtualList} {vlHeight} {vlItemSize} lazyDropdown={virtualList || lazyDropdown} {multiple}
-      dropdownIndex={dropdownActiveIndex}
-      items={availableItems} {listIndex}
-      inputValue={dropdownInputValue} {hasDropdownOpened} {listMessage} {disabledField} createLabel={_i18n.createRowLabel}
-      metaKey={isIOS ? '⌘' : 'Ctrl'}
-      selection={collapseSelection && alwaysCollapsed ? selectedOptions : null}
-      itemComponent={dropdownItem}
-      on:select={onSelect}
-      on:deselect={onDeselect}
-      on:hover={onHover}
-      on:createoption
-      let:item={item}
-    ></Dropdown>
-    
-  {#if inputValue && creatable && !maxReached}
-    <div class="creatable-row-wrap" class:with-border={availableItems.length > 0}>
-      <!-- svelte-ignore a11y-click-events-have-key-events -->
-      <div class="creatable-row" on:click={dispatch('select', inputValue)} on:mouseenter={dispatch('hover', listIndex.last)}
-        class:active={currentListLength == dropdownActiveIndex}
-        class:is-disabled={alreadyCreated.includes(inputValue)}
-      >
-      {@html _i18n.createRowLabel(inputValue)}
-      {#if currentListLength != dropdownActiveIndex}
-        <span class="shortcut"><kbd>{isIOS ? '⌘' : 'Ctrl'}</kbd>+<kbd>Enter</kbd></span>
-      {/if}
-      </div>
-    </div>
-  {/if}
-  </div>
+    </slot>
+  </Control>
+  <Dropdown bind:this={refDropdown} renderer={itemRenderer} {disableHighlight} {creatable} {maxReached} {alreadyCreated}
+    {virtualList} {vlHeight} {vlItemSize} lazyDropdown={virtualList || lazyDropdown} {multiple}
+    dropdownIndex={dropdownActiveIndex}
+    items={availableItems} {listIndex}
+    inputValue={dropdownInputValue} {hasDropdownOpened} {listMessage} {disabledField} createLabel={_i18n.createRowLabel}
+    metaKey={isIOS ? '⌘' : 'Ctrl'}
+    selection={collapseSelection && alwaysCollapsed ? selectedOptions : null}
+    itemComponent={dropdownItem}
+    on:select={onSelect}
+    on:deselect={onDeselect}
+    on:hover={onHover}
+    on:createoption
+    let:item={item}
+  ></Dropdown>
   {#if name && !hasAnchor}
-  <select id={__id} name={name} {multiple} class="sv-invisible-element" tabindex="-1" {required} {disabled} use:refSelectAction={refSelectActionParams}>
+  <select id={__id} name={name} {multiple} class="sv-hidden-element" tabindex="-1" {required} {disabled} use:refSelectAction={refSelectActionParams}>
     {#each selectedOptions as opt}
     <option value={opt[labelAsValue ? currentLabelField : currentValueField]} selected>{opt[currentLabelField]}</option>
     {/each}
@@ -847,180 +731,83 @@
 </div>
 
 <style>
-  .svelecte {
-    --sv-border: var(--sv-border-width, 1px) var(--sv-border-style, solid) var(--sv-border-color, #ccc);
-    position: relative;
-    flex: 1 1 auto;
-    color: var(--sv-color, inherit);
-    --sv-general-padding: 4px;  /* theme */
-    --sv-input-wrap-padding: var(--sv-general-padding);
-    --sv-item-padding: var(--sv-general-padding);
-    --sv-dropdown-offset: 1px;
+  .svelecte-control {
+    --sv-bg: #fff;
+    --sv-color: inherit;
+    --sv-min-height: 38px;
+    --sv-border-color: #ccc;
+    --sv-border: 1px solid var(--sv-border-color);
+    --sv-active-border: 1px solid #555;
+    --sv-active-outline: none;
+    --sv-disabled-bg: #f2f2f2;
+    --sv-disabled-border-color: #e6e6e6;
+    --sv-placeholder-color: #ccccc6;
+    --sv-icon-color: #ccc;
+    --sv-icon-hover: #999;
+    --sv-loader-border: 3px solid #dbdbdb;
+    --sv-dropdown-shadow: 0 6px 12px rgba(0,0,0,0.175);
+    --sv-dropdown-height: 250px;
+    --sv-item-selected-bg: #efefef;
+    --sv-item-color: #333333;
+    --sv-item-active-color: var(--sv-item-color);
+    --sv-item-active-bg: #F2F5F8;
+    --sv-item-btn-bg: var(--sv-item-selected-bg);
+    --sv-item-btn-bg-hover: #ddd;
+    --sv-item-btn-icon: var(--sv-item-color);
+    --sv-highlight-bg: yellow;
+    --sv-highlight-color: var(--sv-item-color);
   }
-  .svelecte-theme {
-    /* TODO: all specific stylings move here */
-  }
+  .svelecte { position: relative; flex: 1 1 auto; color: var(--sv-color);}
+  .svelecte.is-disabled { pointer-events: none; }
+  .icon-slot { display: flex; }
+  .sv-hidden-element { opacity: 0; position: absolute; z-index: -2; top: 0; height: var(--sv-min-height)}
 
-  /* control */
-  .sv-control, .sv-input-wrap, .sv-selection {
+  /** globally available styles for control/dropdown Item components */    
+  :global(.svelecte-control .has-multiSelection .sv-item),
+  :global(#dnd-action-dragged-el .sv-item) {
+    background-color: var(--sv-item-selected-bg);
+    margin: 2px 4px 2px 0;
+  }
+  :global(.svelecte-control .has-multiSelection .sv-item-content),
+  :global(.svelecte-control .sv-dropdown-content .sv-item),
+  :global(#dnd-action-dragged-el .sv-item-content) {
+    padding: 3px 3px 3px 6px;
+  }
+  :global(.svelecte-control .sv-item),
+  :global(#dnd-action-dragged-el .sv-item) {
     display: flex;
-  }
-  
-  .sv-control {
-    display: flex;
-    align-items: center;
-    border: var(--sv-border);
-    border-radius: var(--sv-border-radius, 4px);
-    min-height: var(--sv-min-height, 36px);
-  }
-  .sv-control:focus-within {
-    outline: 3px solid #9ebffd;
-    border-color: transparent;
-  }
-
-  /** ************************************ items & selected */
-
-  .sv-input-wrap {
-    flex: 1;
-    min-width: 0;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px;
-    padding: var(--sv-input-wrap-padding);
-    padding-left: calc(var(--sv-input-wrap-padding));
-  }
-
-  /** ************************************ input */
-
-  .sv-input {
-    box-sizing: content-box;
-    width: 19px;
-    background: rgba(0, 0, 0, 0) none repeat scroll 0px center;
-    border: 0px none;
-    font-size: inherit;
-    font-family: inherit;
-    opacity: 1;
-    outline: currentcolor none 0px;
-    padding: 0px;
-    color: inherit;
-    align-self: center;
-  }
-
-  /** ************************************ buttons */
-
-  .sv-buttons {
-    display: flex;
-    align-self: stretch;
-    margin: var(--sv-general-padding, 4px);
-  }
-  .sv-btn {
-    color: var(--sv-icon-color, #bbb);
-    display: flex;
-    transition: color 150ms ease 0s;
+    min-width: 0px;
     box-sizing: border-box;
-    background-color: var(--sv-icon-bg-color, transparent);
-    border-width: var(--sv-icon-border-width, 0);
+    border-radius: 2px;
+    cursor: default;
   }
-  .sv-btn:hover {
-    color: var(--sv-icon-color-hover, #777);
+  :global(.svelecte-control .sv-item.is-disabled) { opacity: 0.5; cursor: not-allowed; }
+
+  :global(.svelecte-control .sv-item-content),  
+  :global(#dnd-action-dragged-el .sv-item-content) {
+    color: var(--sv-item-color, var(--sv-color));
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    box-sizing: border-box;
+    border-radius: 2px;
+    overflow: hidden;
+    width: 100%;
   }
-  .sv-btn.is-indicator {
-    align-items: center;
+  :global(.svelecte-control .sv-dd-item-active > .sv-item) {
+    background-color: var(--sv-item-active-bg);
+  }
+  :global(.svelecte-control .sv-dd-item-active > .sv-item .sv-item-content) {
+    color: var(--sv-item-active-color, var(--sv-item-color));
+  }
+  /* :global(.svelecte-control .highlight) {
+    background-color: var(--sv-highlight-bg);
+    color: var(--sv-highlight-color, var(--sv-color));
+  } */
+  .indicator-icon {
+    display: inline-block;
     fill: currentcolor;
     line-height: 1;
     stroke: currentcolor;
     stroke-width: 0px;
-  }
-  .sv-btn-separator {
-    align-self: stretch;
-    background-color: var(--sv-border-color, #ccc);
-    margin-bottom: 2px;
-    margin-top: 2px;
-    width: 1px;
-    box-sizing: border-box;
-  }
-
-  /** ************************************ dropdown */
-
-  .sv-dropdown {
-    margin: var(--sv-dropdown-offset, 0) 0;
-    box-sizing: border-box;
-    position: absolute;
-    min-width: 100%;
-    display: none;
-    background-color: var(--sv-bg, #fff);
-    overflow-y: auto;
-    overflow-x: hidden;
-    border: 1px solid rgba(0,0,0,0.15);
-    border-radius: var(--sv-border-radius, 4px);
-    box-shadow: var(--sv-dropdown-shadow, 0 6px 12px #0000002d);
-    z-index: 2;
-  }
-  .sv-dropdown.is-open {
-    display: block;
-  }
-
-  .sv-dropdown-content {
-    padding: var(--sv-general-padding);
-  }
-  .creatable-row-wrap.with-border {
-    border-top: 1px solid #efefef;
-  }
-  .creatable-row-wrap {
-    padding: 4px;
-  }
-  .creatable-row {
-    box-sizing: border-box;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-radius: 2px;
-    padding: 3px 3px 3px 6px;
-  }
-  .creatable-row:hover,
-  .creatable-row:active,
-  .creatable-row.active {
-    background-color: var(--sv-item-active-bg);
-  }
-  .creatable-row.active.is-disabled {
-    opacity: 0.5;
-    background-color: rgb(252, 186, 186);
-  }
-  .creatable-row.is-disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .shortcut {
-    display: flex;
-    align-items: center;
-    align-content: center;
-  }
-  .shortcut > kbd {
-      border: 1px solid #efefef;
-      border-radius: 4px;
-      padding: 0px 6px;
-      margin: -1px 0;
-      background-color: white;
-      line-height: 1.6;
-      height: 22px;
-  }
-  
-  .alwaysCollapsed-selection.has-multiSelection {
-    padding: 4px 4px 0;
-    display: flex;
-    flex-wrap: wrap;
-  }
-  
-  .optgroup-header {
-    padding: 3px 3px 3px 6px;
-    font-weight: bold;
-  }
-
-  .sv-invisible-element {
-    position: absolute;
-    opacity: 0;
-    z-index: -2;
-    inset: 0 0 0 0;
   }
 </style>

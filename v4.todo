@@ -1,0 +1,22 @@
+Basic:
+    ☐ simplify markup
+    ☐ select
+    ☐ multiselect
+    ☐ virtual list support
+    ☐ remove useless stores
+    
+Fetch:
+    ☐ refactor fetch creation
+        ☐ no debounce on `fetchOnInit`
+
+a11y:
+    ☐ implement
+
+validation:
+    ☐ re-implement (svelte-use-form)
+
+DnD:
+    ☐ copy & paste
+
+Advanced: 
+    ☐ 

@@ -1,5 +1,5 @@
 <script>
-  import Svelecte from '$lib/Svelecte.svelte';
+  import Svelecte from '$lib/Svelecte_old.svelte';
 
   const items = 10;
   let options = [];

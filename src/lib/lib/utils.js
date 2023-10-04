@@ -12,7 +12,8 @@ export function isOutOfViewport(elem) {
 
   out.top = parentBounding.top < 0;
   out.left = parentBounding.left < 0;
-  out.bottom = parentBounding.bottom + bounding.height > (window.innerHeight || document.documentElement.clientHeight); 
+  out.bottom = parentBounding.bottom + bounding.height > (window.innerHeight || document.documentElement.clientHeight)
+    && parentBounding.top > bounding.height && ((window.innerHeight || document.documentElement.clientHeight) > bounding.height + 50); 
   out.right = parentBounding.right > (window.innerWidth || document.documentElement.clientWidth);
   out.any = out.top || out.left || out.bottom || out.right;
 

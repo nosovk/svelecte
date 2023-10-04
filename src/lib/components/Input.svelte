@@ -90,6 +90,9 @@
 .inputBox::placeholder {
   color: var(--sv-placeholder-color, #ccccd6);
 }
+.inputBox:not(:focus) {
+  position: absolute;
+}
 .inputBox:read-only { width: 100%; }
 .shadow-text {
   opacity: 0;

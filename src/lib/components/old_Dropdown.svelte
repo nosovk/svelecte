@@ -146,19 +146,6 @@
     scrollContainer.parentElement.style = '';
   }
 
-  function updateIndex(e) {
-    const item = e.target.closest('.sv-dd-item');
-    if (!item) return;
-    if (item.classList.contains('sv-group-header')) return;
-    dispatch('hover', item.dataset.pos);
-  }
-
-  function onSelect(e) {
-    const item = e.target.closest('.sv-dd-item');
-    if (!item || !item.dataset.pos) return;
-    dispatch('select', items[item.dataset.pos]);
-  }
-
   let dropdownStateSubscription = () => {};
   let onScrollHandler = null;
   /** ************************************ lifecycle */
@@ -180,11 +167,19 @@
 </script>
 
 {#if isMounted && renderDropdown}
-  <div bind:this={scrollContainer}
-    class="sv-dropdown-scroll" class:is-empty={!items.length} class:is-virtual={virtualList}
-    tabindex="-1"
-  >
-    <div bind:this={container} class="sv-dropdown-content" class:max-reached={maxReached}>
+<!-- svelte-ignore a11y-no-static-element-interactions -->
+<div class="sv-dropdown" class:is-virtual={virtualList} aria-expanded={$hasDropdownOpened}
+  on:mousedown|preventDefault
+>
+  {#if selection}
+  <div class="sv-content has-multiSelection alwaysCollapsed-selection">
+    {#each selection as opt, i (i)}
+      <svelte:component this={itemComponent} formatter={renderer} item={opt} isSelected={true} on:deselect isMultiple={multiple} {inputValue}/>
+    {/each}
+  </div>
+  {/if}
+  <div class="sv-dropdown-scroll" class:is-empty={!items.length}  bind:this={scrollContainer} tabindex="-1" >
+    <div class="sv-dropdown-content" bind:this={container} class:max-reached={maxReached}>
     {#if items.length}
       {#if virtualList}
         <VirtualList bind:this={refVirtualList}
@@ -195,56 +190,38 @@
           scrollToAlignment="auto"
           scrollToIndex={!multiple && dropdownIndex ? parseInt(dropdownIndex) : null}
         >
-          <svelte:fragment slot="item" let:index let:style>
-          {@const opt = items[index]}
-          <!-- svelte-ignore a11y-click-events-have-key-events -->
-          <!-- svelte-ignore a11y-mouse-events-have-key-events -->
-          <!-- svelte-ignore a11y-no-static-element-interactions -->
-          <div {style} data-pos={listIndex.map[index]}
+          <div slot="item" let:index let:style {style}
             class="sv-dd-item"
             class:sv-dd-item-active={index == dropdownIndex}
+            class:sv-group-item={items[index].$isGroupItem}
+            class:sv-group-header={items[index].$isGroupHeader}
+          >
+            <svelte:component this={itemComponent} formatter={renderer}
+              index={listIndex.map[index]}
+              isDisabled={items[index][disabledField]}
+              item={items[index]}
+              {inputValue}
+              {disableHighlight}
+              on:hover
+              on:select/>
+          </div>
+        </VirtualList>
+      {:else}
+        {#each items as opt, i}
+          <div data-pos={listIndex.map[i]}
+            class="sv-dd-item"
+            class:sv-dd-item-active={listIndex.map[i] == dropdownIndex}
             class:sv-group-item={opt.$isGroupItem}
             class:sv-group-header={opt.$isGroupHeader}
-            on:mouseenter={updateIndex}
-            on:click={onSelect}
           >
-            {#if opt.$isGroupHeader}
-              <div class="sv-optgroup-header"><b>{opt.label}</b></div>
-            {:else}
             <svelte:component this={itemComponent} formatter={renderer}
+              index={listIndex.map[i]}
               isDisabled={opt[disabledField]}
               item={opt}
               {inputValue}
               {disableHighlight}
               on:hover
               on:select/>
-              {/if}
-          </div>
-          </svelte:fragment>
-        </VirtualList>
-      {:else}
-        {#each items as opt, i}
-          <!-- svelte-ignore a11y-click-events-have-key-events -->
-          <!-- svelte-ignore a11y-mouse-events-have-key-events -->
-          <!-- svelte-ignore a11y-no-static-element-interactions -->
-          <div data-pos={listIndex.map[i]}
-            class="sv-dd-item"
-            class:sv-dd-item-active={listIndex.map[i] == dropdownIndex}
-            class:sv-group-item={opt.$isGroupItem}
-            class:sv-group-header={opt.$isGroupHeader}
-            on:mouseenter={updateIndex}
-            on:click={onSelect}
-          >
-            {#if opt.$isGroupHeader}
-              <div class="sv-optgroup-header"><b>{opt.label}</b></div>
-            {:else}
-              <svelte:component this={itemComponent} formatter={renderer}
-                isDisabled={opt[disabledField]}
-                item={opt}
-                {inputValue}
-                {disableHighlight}
-              />
-            {/if}
           </div>
         {/each}
       {/if}
@@ -252,46 +229,115 @@
     {#if hasEmptyList || maxReached}
       <div class="empty-list-row">{listMessage}</div>
     {/if}
-  </div>
-</div> <!-- scroll container end -->
+    </div>
+  </div> <!-- scroll container end -->
+  {#if inputValue && creatable && !maxReached}
+    <div class="creatable-row-wrap">
+      <!-- svelte-ignore a11y-click-events-have-key-events -->
+      <div class="creatable-row" on:click={dispatch('select', inputValue)} on:mouseenter={dispatch('hover', listIndex.last)}
+        class:active={currentListLength == dropdownIndex}
+        class:is-disabled={alreadyCreated.includes(inputValue)}
+      >
+      {@html createLabel(inputValue)}
+      {#if currentListLength != dropdownIndex}
+        <span class="shortcut"><kbd>{metaKey}</kbd>+<kbd>Enter</kbd></span>
+      {/if}
+      </div>
+    </div>
+  {/if}
+</div>
 {/if}
 
 <style>
-  .sv-dropdown-scroll.is-virtual {
-    overflow-y: hidden;
-  }
-  .sv-dropdown-scroll {
-    /* min-height: 40px; */
-    padding: 4px;
-    box-sizing: border-box;
-    max-height: var(--sv-dropdown-height, 316px);
-    overflow-y: auto;
-    overflow-x: hidden;
-    
-  }
-  .sv-dropdown-scroll.is-empty {
-    padding: 0;
-  }
-  .sv-dropdown-content.max-reached { opacity: 0.75; cursor: not-allowed; }
+.sv-dropdown {
+  box-sizing: border-box;
+  position: absolute;
+  background-color: var(--sv-bg);
+  width: 100%;
+  display: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid rgba(0,0,0,0.15);
+  border-radius: .25rem;
+  box-shadow: var(--sv-dropdown-shadow);
+  z-index: 2;
+}
+.sv-dropdown.is-virtual .sv-dropdown-scroll {
+  overflow-y: hidden;
+}
+.sv-dropdown-scroll {
+  /* min-height: 40px; */
+  padding: 4px;
+  box-sizing: border-box;
+  max-height: var(--sv-dropdown-height);
+  overflow-y: auto;
+  overflow-x: hidden;
+  
+}
+.sv-dropdown-scroll.is-empty {
+  padding: 0;
+}
+.sv-dropdown[aria-expanded="true"] { display: block; }
+.sv-dropdown-content.max-reached { opacity: 0.75; cursor: not-allowed; }
 
-  .empty-list-row {
-    min-width: 0px;
-    box-sizing: border-box;
-    border-radius: 2px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    box-sizing: border-box;
-    border-radius: 2px;
-    overflow: hidden;
-    padding: 7px 7px 7px 10px;
-    text-align: left;
-  }
+.sv-dropdown-scroll:not(.is-empty) + .creatable-row-wrap {
+  border-top: 1px solid #efefef;
+}
+.creatable-row-wrap {
+  padding: 4px;
+}
+.creatable-row {
+  box-sizing: border-box;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 2px;
+  padding: 3px 3px 3px 6px;
+}
+.creatable-row:hover,
+.creatable-row:active,
+.creatable-row.active {
+  background-color: var(--sv-item-active-bg);
+}
+.creatable-row.active.is-disabled {
+  opacity: 0.5;
+  background-color: rgb(252, 186, 186);
+}
+.creatable-row.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
-  .sv-dd-item-active {
-    background-color: #F2F5F8;
-  }
-  .sv-optgroup-header {
-    padding: 3px 3px 3px 6px;
-    font-weight: bold;
+.shortcut {
+  display: flex;
+  align-items: center;
+  align-content: center;
+}
+.shortcut > kbd {
+    border: 1px solid #efefef;
+    border-radius: 4px;
+    padding: 0px 6px;
+    margin: -1px 0;
+    background-color: white;
+    line-height: 1.6;
+    height: 22px;
+}
+
+.empty-list-row {
+  min-width: 0px;
+  box-sizing: border-box;
+  border-radius: 2px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-sizing: border-box;
+  border-radius: 2px;
+  overflow: hidden;
+  padding: 7px 7px 7px 10px;
+  text-align: left;
+}
+.alwaysCollapsed-selection.has-multiSelection {
+  padding: 4px 4px 0;
+  display: flex;
+  flex-wrap: wrap;
 }
 </style>
